@@ -1,0 +1,496 @@
+<html>
+  <link href="d3_g5k.css" rel="stylesheet" type="text/css">
+  <!-- <link href="lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen"> -->
+ <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+<style>
+  .name{
+    list-style-type: none;
+    display: inline;
+    margin: 3px;
+}
+</style>
+ <body>
+   <div class="container">
+     <div class="explanation">
+       <h1>Grid'5000 jobs visualization</h1>
+     </div>
+     <div class="graph">
+     </div>
+   </div>
+  </body>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script type=text/javascript>
+  var jsonCircles;
+  
+  var contexts = 
+  [
+    {
+      "site"  : "Rennes",
+      "json"  : "./jobs_2012-08-31_2013-09-01_rennes.json",
+      "cores" : 1672,
+      "allowance" : 1672 * 7200
+    },
+    {
+      "site"  : "Nancy",
+      "json"  : "./jobs_2012-08-31_2013-09-01_nancy.json",
+      "cores" : 1312,
+      "allowance" : 1312 * 7200
+    },
+    {
+      "site"  : "Sophia",
+      "json"  : "./jobs_2012-08-31_2013-09-01_sophia.json",
+      "cores" : 784,
+      "allowance" : 784 * 7200
+    },
+    {
+      "site"  : "Toulouse",
+      "json"  : "./jobs_2012-08-31_2013-09-01_toulouse.json",
+      "cores" : 560,
+      "allowance" : 560 * 7200
+    },
+    {
+      "site"  : "Lyon",
+      "json"  : "./jobs_2012-08-31_2013-09-01_lyon.json",
+      "cores" : 446,
+      "allowance" : 446 * 7200
+    },
+    {
+      "site"  : "Lille",
+      "json"  : "./jobs_2012-08-31_2013-09-01_lille.json",
+      "cores" : 592,
+      "allowance" : 592 * 7200
+    },
+    {
+      "site"  : "Reims",
+      "json"  : "./jobs_2012-08-31_2013-09-01_reims.json",
+      "cores" : 1056,
+      "allowance" : 1056 * 7200
+    },
+    {
+      "site"  : "Grenoble",
+      "json"  : "./jobs_2012-08-31_2013-09-01_grenoble.json",
+      "cores" : 928,
+      "allowance" : 928 * 7200
+    },
+    {
+      "site"  : "Luxembourg",
+      "json"  : "./jobs_2012-08-31_2013-09-01_luxembourg.json",
+      "cores" : 368,
+      "allowance" :  368 * 7200
+    },
+  ];
+
+  var site = "Rennes";
+
+  console.log("loading values for site " + site);
+
+  graphDiv = d3.select(".graph");
+
+  updateGraph(graphDiv);
+
+  /* hold the original data set.*/
+  var datas;
+
+  function generateJobsByDate(json){
+        hash = {} 
+        result = []
+        for (i in json){
+          //var jobs = json[i].summary.jobs.length
+          var summary = json[i].summary
+	  var day = json[i].day
+          //hash[day] ? hash[day] += jobs : hash[day] = jobs
+	  if (!hash[day]){hash[day] = [];} 
+	  hash[day].push(summary);
+        }
+        var i = 0;
+        for (key in hash){
+          result[i] = {"day" : key, "summary" : hash[key]};
+          i++;
+        }
+        console.log("result");
+        console.log(result);
+        return result;
+      };
+
+  function updateGraph(graphDiv){
+    graphDiv.html("");
+    var context = contexts.filter(function(element){ return element.site == site})[0];
+
+    var title = graphDiv.append('div').attr('id', 'title');
+
+    d3.json(context.json, function(error, json) {
+        if (error) return console.warn(error);
+        console.log("json datas read succesfully"); 
+        datas = json;
+      var lookupNames = function(array){
+        var result = []
+        for (i in array){
+          if (result.indexOf(array[i].user) < 0){
+            result.push(array[i].user)
+          }
+        }
+        console.log(result)
+        return result;
+      }
+      
+      var names = lookupNames(json).sort();
+      var jobs_days = generateJobsByDate(json);
+      console.log(jobs_days);
+      updateTitle(title, json,names,jobs_days);
+      graph(graphDiv, json, names, jobs_days, context);
+      });
+ 
+
+    function updateTitle(title, json, names, jobs_days){
+      //title.append('h1').html("One year of jobs in " + site);
+      title.append('button')
+        .attr("type", "button")
+        .attr("class", "btn-success")
+        .style("width", "15%")
+        .html("<h1>" + context.cores + "</h1> <small>cores</small>");
+
+      title.append('button')
+        .attr("type", "button")
+        .attr("class", "btn-danger")
+        .style("width", "20%")
+        .html("<h1>" + context.allowance.toLocaleString() + "</h1> <small>daily allowance (cores.s)</small>");
+
+      title.append('button')
+        .attr("type", "button")
+        .attr("class", "btn-info")
+        .style("width", "15%")
+        .html("<h1>" + names.length + "</h1> <small>active users</small>");
+
+      //var jobs = jobs_days.reduce(function(p,c){return p + c.jobs},0);
+      var jobs = jobs_days.reduce(
+        function(p,c){
+          return p + c.summary.reduce(
+            function(p,c){
+              return p + c.jobs.length;    
+          },0)
+        },0);
+
+
+      title.append('button')
+        .attr("type", "button")
+        .attr("class", "btn-success")
+        .style("width", "15%")
+        .html("<h1>" + jobs  + "</h1> <small>jobs</small>");
+
+      title.append('button')
+        .attr("type", "button")
+        .attr("class", "btn-warning")
+        .style("width", "15%")
+        .html("<h1>" + jobs_days.length  + "</h1> <small>days</small>");
+
+
+      var divSites = title.append("div").attr("id", "sites");
+      divSites.selectAll("button")
+        .data(contexts)
+      .enter()
+      .append('button')
+      .attr("type", "button")
+      .style("margin","3px")
+      .attr("class", function(d){return (d.site == site) ? "btn btn-warning":"btn btn-default" })
+      .html(function(d){return d.site})
+      .on('click', function(d){
+          site = d.site;
+          updateGraph(graphDiv);
+      });
+    }
+
+
+    function graph(grapDiv, jsonCircles,names, jobs_days, context){
+      console.log("Generating graph with")
+      console.log(jsonCircles); 
+      console.log(names); 
+      var width = 900;
+      var height = 600;
+      var marginLeft = 100;
+      var marginTop = 50;
+      var paddingBottom = 150;
+      var xWidth = width - marginLeft-50;
+      var yHeight = height - paddingBottom;
+      var baseUtilization = yHeight;
+      var utilizationHeight = 100;
+      // x-scale
+      var scalex = d3.time.scale()
+      scalex.domain([new Date("2012-08-31"), new Date("2013-09-01")])
+      scalex.range([0,xWidth])
+
+      // y-scale
+      var scaley = d3.scale.log();
+      scaley.domain([1,50000000]);
+      scaley.range([yHeight,0]);
+
+      var scaley2 = d3.scale.linear();
+      scaley2.domain([0,100]);
+      scaley2.range([100, 0]);
+
+
+      // x-axis
+      var xAxis = d3.svg.axis()
+      .scale(scalex)
+      .orient("bottom")
+      .tickSize(1)
+
+      // y-axis
+      var yAxis = d3.svg.axis()
+      .scale(scaley)
+      .orient("left")
+      .tickSize(1)
+
+      var yAxis2 = d3.svg.axis()
+      .scale(scaley2)
+      .orient("right")
+      .tickSize(1)
+      .ticks(5);
+
+      var lookupLines = function(array){
+        var result = [] 
+        var ids = []  
+        for (i in array){
+          if (ids.indexOf(array[i].user) < 0){
+            ids.push(array[i].user)
+            result.push({ "user" : array[i].user, "lines": [], "trace": 0})
+
+          }
+          result[result.length -1].lines.push({"day" : array[i].day, "summary" : array[i].summary});
+          result[result.length -1].lines.sort(function(a,b){return a.day.localeCompare(b.day)});
+
+        }
+        return result;
+      }
+
+      var lines = lookupLines(jsonCircles);
+
+      // color scale
+      var color = d3.scale.ordinal()
+          .domain(names)
+          .range(d3.range(names.length).map(d3.scale.linear()
+                    .domain([0, names.length - 1])
+                    .range(["hsl(0,70%,50%)", "hsl(100,70%,50%)"])
+                    .interpolate(d3.interpolateHsl)));
+
+      var trace = function(user){
+        for (i in lines){
+          if (lines[i].user == user){
+            lines[i].trace = 1;
+          }
+        }
+      }
+
+       
+
+      // container for the svg
+      //var svgContainer = d3.select(graphDiv).append("svg")
+      var svgContainer = graphDiv.append("svg")
+                                          .attr("width", width)
+                                          .attr("height",height)
+                                          .append("g")
+                                          .attr("transform", "translate(" + marginLeft + "," + marginTop + ")")
+                                          
+      // circle = one user/day
+      var circles = svgContainer.selectAll("circle")
+                                .data(jsonCircles)
+                                .enter()
+                                .append("circle");
+      // customize circles 
+      var circleAttributes = circles
+      .attr("cx", function(d,i){return scalex(new Date(d.day))}) 
+      .attr("cy", function(d){
+          var total = d.summary.restricted_cputime; 
+          result = (total != 0) ? scaley(total) : 0;
+          return result;
+          })
+      .attr("r", function(d){return Math.sqrt(d.summary.jobs.length) ;})
+      .attr("class", function(d){return d.user;})
+      .style("fill", function(d){return color(d.user)})
+      .on("mouseover", function(d){
+          var selectedLine = d3.select("#" + d.user)
+            .style("stroke-width", 1)
+            .style("stroke-dasharray", "5,5")
+          
+          d3.selectAll("circle").style("opacity", 0.2)
+          d3.selectAll("." + d.user).style("opacity",1)
+          console.log("updating f...");
+          update_info(d.user)
+          })
+      .on("mouseout", function(d){
+          var selectedLine = d3.select("#" + d.user);
+          selectedLine.style("stroke-width", 0);
+          d3.selectAll("circle").style("opacity", 1)
+          })
+
+      // lines between circles of the same user
+      var d3lines = d3.svg.line()
+          .x(function(d){return scalex(new Date(d.day));})
+          .y(function(d){
+          var total = d.summary.restricted_cputime; 
+          result = (total != 0) ? scaley(total) : 0;
+          return result;
+          });
+
+
+        var group = svgContainer.selectAll('path')
+           .data(lines, function(d){return d.user})
+           .enter().append('path')
+           .attr("d", function(d){return d3lines(d.lines)})
+           .attr("fill", "none")
+           //.attr("stroke", function(d){return color(d.user)})
+           .attr("stroke", "red")
+           .attr("stroke-width", function(d){return d.trace})
+           .attr("id", function(d){return d.user})
+
+        // daily allowance
+        svgContainer.append("path")
+           .attr("d", "M0," + scaley(context.allowance) + "L" + width + "," + scaley(context.allowance))
+           .attr("fill", "none")
+           .attr("stroke", "black")
+           .attr("stroke-width", 1)
+           .attr("stroke-dasharray","20,10,5,5,5,10")
+	
+	// utilization
+	svgContainer.selectAll("rect")
+	  .data(jobs_days)
+          .enter().append("rect")
+          .attr("class", function(d){return "bar-" + d.day})
+          .attr("transform", 
+		function(d){ var x = scalex(new Date(d.day));
+                  return "translate(" + x + " ,  " + (baseUtilization) + " )rotate(180)"})
+          .attr("width", ((xWidth)/jobs_days.length) + "px")
+          .attr("height",  function (d){ var total =
+            d.summary.reduce ( function(p,c){
+                return p + c.restricted_cputime;    
+            },0);
+	   return scaley2(100 - total/(context.cores*3600*10) * 100);
+          })
+          .attr("fill", d3.hsl(200,0.5,0.5))
+          .style("opacity", 0.5)
+          .on("mouseover",function(d){
+            update_info_utilization(d.day);
+            d3.select(this).style("opacity",1).style("fill", d3.hsl(0,0.7,0.5) );
+	 })
+           .on("mouseout", function(d){
+           d3.select(this).style("opacity",0.5).style("fill", d3.hsl(200,0.5,0.5) );
+         })
+
+        var usersContainer = graphDiv.append("div")
+           .attr("id", "names");
+
+         var namesContainer = d3.select("#names").append("div")
+          .attr("id", "namesContainer")
+ 	  .style("overflow", "scroll") 
+          .style("width", "75%") 
+          .style("float", "left")  
+	
+      namesContainer.selectAll("ul")
+      .data(names)
+      .enter()
+      
+      .append("li")
+      .attr("class", "name")
+      .style("color", function(d){return color(d)})
+      .text(function(d){return d})
+      .on('mouseover', function(d){
+           var selectedLine = d3.select("#" + d)
+            .style("stroke-width", 1)
+            .style("stroke-dasharray", "5,5")
+	   highlights_circles(d);
+           update_info(d)
+           highlights_bars(d);
+          })
+      .on('mouseout', function(d){
+           var selectedLine = d3.select("#" + d);
+           selectedLine.style("stroke-width", 0);
+           d3.selectAll("circle").style("opacity",1);
+           d3.selectAll("rect").style("opacity",0.5).style("fill", d3.hsl(200,0.5,0.5) );
+           });
+     
+      usersContainer.append("button")
+      .attr("id", "info")
+      .attr("type", "button")
+      .attr("class","btn-default")
+      .style("float", "left")
+      .style("width", "25%")
+
+      function highlights_bars(user){
+        days_with_jobs = jsonCircles.filter(function(element){ return element.user == user});
+        days_with_jobs.forEach(function(c,i){d3.selectAll(".bar-" + c.day).style("fill", "red")})
+      }
+
+      function highlights_circles(user){
+        d3.selectAll("circle").style("opacity", 0.2)
+        d3.selectAll("." + user).style("opacity",1)
+      }
+
+      function update_info(user){
+        days_with_jobs = jsonCircles.filter(function(element){ return element.user == user});
+          var jobs = days_with_jobs.reduce(function(previous, current){return previous + current.summary.jobs.length},0);
+          var total = days_with_jobs.reduce(function(previous, current){return previous + current.summary.restricted_cputime},0);
+          var days = days_with_jobs.length;
+          d3.selectAll("#info").html(
+              user + 
+              " <br/> jobs : " + jobs + 
+              " <br/> total : " + total.toLocaleString()+
+              " <br/> days : " + days
+              );
+      };
+
+      function update_info_utilization(day){
+         var jobs_day = jobs_days.filter(function(element){return element.day == day})[0];
+         console.log(jobs_day);
+         var jobs = jobs_day.summary.reduce(function(p,c){return p + c.jobs.length},0)
+         var total =
+            jobs_day.summary.reduce ( function(p,c){
+                return p + c.restricted_cputime;    
+            },0)
+	 var ratio = total/(context.cores * 3600 * 10)*100 
+         d3.selectAll("#info").html(
+              new Date(day).toDateString() + 
+              " <br/> utilization : " + ratio.toFixed(2) + " %" + 
+              " <br/> jobs : " + jobs + 
+              " <br/> total : " + total.toLocaleString() 
+  
+         );
+      }
+
+      //axis
+      var xAxisGroup = svgContainer.append("g")
+      .attr("transform", "translate(0," + height + ")translate(0," + (-paddingBottom) +")")
+    .call(xAxis) 
+    .selectAll("text")
+      .style("text-anchor", "end")
+      .attr("transform", "rotate(-60)")
+	
+      var yAxisGroup = svgContainer.append("g")
+      .call(yAxis);
+
+      var yAxisGroup2 = svgContainer.append("g")
+      .attr("transform", "translate(" + xWidth + " ,  " + (baseUtilization - utilizationHeight) + " )")
+      .call(yAxis2);
+
+      svgContainer
+        .append("text")
+          .attr("y", height - paddingBottom/2)
+          .attr("x", xWidth/2)
+          .text("Days");
+
+      svgContainer
+        .append("text")
+        .style("text-anchor", "middle")
+	.attr("transform", "translate("+ (-marginLeft + 40) + "," + (yHeight/2) +")rotate(-90)")
+        .text("Resources utilization (cores.s)")
+      
+      svgContainer
+       .append("text")
+       .style("text-anchor", "middle")
+       .attr("transform", "translate(" + (xWidth+marginLeft/2) +", "+ (baseUtilization - utilizationHeight/2) +")rotate(-90)") 
+       .text("% utilization")
+   
+    }
+
+   
+  }
+  </script>
+</html>

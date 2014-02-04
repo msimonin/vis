@@ -1,0 +1,583 @@
+<html>
+  <head>
+    <title>Grid'5000 jobs visualization.</title>
+    <meta charset="utf-8">
+    <meta name="description" content="One year jobs on the Grid'5000 testbed.
+    Visualization using D3.js, select2 and bootstrap."/>
+    <meta name="author" content="Matthieu Simonin" />
+
+
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+    <script src="http://netdna.bootstrapcdn.com/bootstrap/3.0.1/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="http://ivaynberg.github.io/select2/select2-3.4.4/select2.css">
+    <script src="http://ivaynberg.github.io/select2/select2-3.4.4/select2.min.js"></script>
+    <style>
+    .user-select{
+    width:100%;
+    }
+    .site{
+    text-align: center;
+    }
+    .summary{
+    border: 1px solid rgb(241,241,241);
+    text-align: center;
+    font-size:120%;
+    }
+
+    .graphContainer{
+    text-align: center;
+    }
+
+    .title{
+    display : block;
+    }
+    .num{
+    font-weight: bold;
+    }
+    </style>
+  </head>
+
+   <body>
+     <div class="container">
+       <div class="explanation">
+         <h1>Grid'5000 jobs visualization</h1>
+         <p>
+         <a href="https://grid5000.fr" title="Grid'5000">Grid'5000</a> is a scientific instrument for the study of large scale parallel and distributed systems. 
+         The infrastructure of Grid'5000 is geographically distributed on different sites hosting the instrument.
+         It aims at providing a highly reconfigurable, controlable and monitorable experimental platform to its users.
+         The initial aim (circa 2003) was to reach 5000 processors in the platform. It has been reframed at 5000 cores, and was reached during winter 2008-2009.
+         </p>
+         <p>
+         The visualization below shows you one year jobs on the Grid'5000 testbed. We consider jobs running during the "restricted period", meaning jobs running between 9 a.m. and 19 p.m. of work day.
+         Jobs running during the "unrestricted period" (jobs running during nights, week-end) are out of the scope of this demonstration.
+        </p>
+        <h2>What am I exactly seeing ? </h2>
+
+        <dl  class="dl-horizontal">
+
+            <dt>Period</dt>
+            <dd>one year : from 2012/08/31 to 2013/09/01.</dd>
+
+            <dt>Resource Utilization<dt>
+            <dd>for one job, it corresponds to the multiplication of the number of cores by the time (in second) of the reservation.<dd>
+
+            <dt>Daily allowance</dt>
+            <dd>
+            is the maximum allowed resources a user can get each day. It corresponds to the resource utilization of a whole sites for 2 hours. 
+            It is represented by the black horizontal line.
+            </dd>
+
+            <dt> Utilization (%)</dt>
+            <dd>
+            is here computed for each day by dividing the the total utilization of the users' jobs by the total resources available in the given site. 
+            Note that dead nodes aren't taken into account.
+            </dd>
+
+            <dt> Active users</dt>
+            <dd>
+            Users with at least one job during the period.
+            </dd>
+
+            <dt> Active days</dt>
+            <dd>
+            Days with at least one job.
+            </dd>
+
+            <dt> Circles </dt>
+            <dd>One circle aggregates the jobs of one user for one given day. The more jobs a user make a day the bigger is the circle.</dd>
+        </dl>
+        
+        <h2>What can I do ?</h2>
+        <ul>
+            <li>Navigating accros sites</li>
+            <li>Filter users</li>
+            <li>Zoom in specific month / day.</li>
+            <li>Have fun :) </li>
+        </ul>
+     </div>
+     <div class="sites row"></div>
+     <div class="graphContainer"></div>
+     <div class="summaryContainer row"></div>
+     <div class="userContainer"></div>
+     <div class="perso"><small>Created by Matthieu Simonin (matthieu.simonin@inria.fr / @SimoninMatthieu ) using D3, select2 and bootstrap. 
+             Special thanks to the 30+ lines SQL query of the outofchart tools</small></div>
+   </div>
+  </body>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script type=text/javascript>
+  var jsonCircles;
+
+  var contexts =
+  [
+    {
+      "site"  : "Rennes",
+      "json"  : "./jobs_2012-08-31_2013-09-01_rennes.json",
+      "cores" : 1672,
+      "allowance" : 1672 * 7200
+    },
+    {
+      "site"  : "Nancy",
+      "json"  : "./jobs_2012-08-31_2013-09-01_nancy.json",
+      "cores" : 1312,
+      "allowance" : 1312 * 7200
+    },
+    {
+      "site"  : "Sophia",
+      "json"  : "./jobs_2012-08-31_2013-09-01_sophia.json",
+      "cores" : 784,
+      "allowance" : 784 * 7200
+    },
+    {
+      "site"  : "Toulouse",
+      "json"  : "./jobs_2012-08-31_2013-09-01_toulouse.json",
+      "cores" : 560,
+      "allowance" : 560 * 7200
+    },
+    {
+      "site"  : "Lyon",
+      "json"  : "./jobs_2012-08-31_2013-09-01_lyon.json",
+      "cores" : 446,
+      "allowance" : 446 * 7200
+    },
+    {
+      "site"  : "Lille",
+      "json"  : "./jobs_2012-08-31_2013-09-01_lille.json",
+      "cores" : 592,
+      "allowance" : 592 * 7200
+    },
+    {
+      "site"  : "Reims",
+      "json"  : "./jobs_2012-08-31_2013-09-01_reims.json",
+      "cores" : 1056,
+      "allowance" : 1056 * 7200
+    },
+    {
+      "site"  : "Grenoble",
+      "json"  : "./jobs_2012-08-31_2013-09-01_grenoble.json",
+      "cores" : 928,
+      "allowance" : 928 * 7200
+    },
+    {
+      "site"  : "Luxembourg",
+      "json"  : "./jobs_2012-08-31_2013-09-01_luxembourg.json",
+      "cores" : 368,
+      "allowance" :  368 * 7200
+    },
+  ];
+  var width = 900;
+  var height = 500;
+  var marginLeft = 50;
+  var marginRight = 50;
+  var marginBottom = 100;
+  var xWidth = width - marginLeft - marginRight;
+  var yHeight = height - marginBottom;
+  var dates = [new Date("2012-08-31"), new Date("2013-09-30")];
+  var users = [];
+  var baseUtilization = yHeight;
+  var utilizationHeight = 100;
+
+  var svgContainer = d3.select(".graphContainer").append("svg")
+        .attr("width", width + "px")
+        .attr("height", height + "px")
+        .append("g")
+        .attr("transform", "translate(" + marginLeft + ", " + 0 + ")" )
+
+  var sitesDiv = d3.select(".sites");
+  var site = "";
+
+  sitesDiv.selectAll("button")
+    .data(contexts) 
+    .enter()
+    .append("div")
+    .attr("class", "site col-md-1")
+    .append("button")
+    .attr("type", "button")
+    .style("margin", "3px")
+    .attr("class", function(d){ return "btn btn-primary disabled " + d.site})
+    .text(function(d){ return d.site})
+    .on("click", function(d){
+            site = d.site;
+            sitesDiv.selectAll(".btn").style("border", "0px");
+            d3.select(this).style("border", "2px solid red");
+
+            var context = contexts.filter(function(context){ return context.site == site;})[0];
+            updateGraph(context, dates);
+            updateSummary(context);
+            updateUser(context);
+    })
+
+  /* hold the original data set.*/
+  var datas;
+  contexts.forEach(function (context){ loadContext(context) });
+
+  /** load asynchronously each json*/
+  function loadContext(context){
+    d3.json(context.json, function(error, json) {
+      if (error) return console.warn(error);
+      console.log("json datas read succesfully for " + context.site);
+      context.data = json;
+      context.names = lookupNames(json).sort();
+      context.jobsByDate = generateJobsByDate(json)
+      context.datesByUser = generateDatesByUser(json);
+      generateSummary(context);
+      d3.selectAll("." + context.site)
+      .attr("class", function(d){return "btn btn-primary active " + d.site});
+      });
+  }
+
+  function generateDatesByUser(json){
+      var result = [];
+      var ids = [];
+      for (i in json){
+          if (ids.indexOf(json[i].user) < 0){
+            ids.push(json[i].user)
+            result.push({"user" : json[i].user, "days":[]});
+          }
+          result[result.length - 1].days.push({"day": json[i].day, "summary": json[i].summary })
+              result[result.length - 1].days.sort(function(a,b){ return a.day.localeCompare(b.day)})
+      }
+      return result;
+  }
+
+  function generateJobsByDate(json){
+    var hash = {};
+    var result = [];
+    for ( i in json){
+      var summary = json[i].summary
+      var day = json[i].day
+      if (!hash[day]){hash[day] = [];}
+      hash[day].push(summary);
+    }
+    var i = 0;
+    for (key in hash){
+      result[i] = {"day" : key, "summary" : hash[key]};
+      i++;
+    }
+    return result;
+  }
+
+  function generateSummary(context){
+    context.summary = [];
+    //active users
+    context.summary.push({"title" : "active users", "value" : context.names.length});
+    //active days
+    context.summary.push({"title" : "active days", "value" : context.jobsByDate.length});
+    // #jobs
+    var jobs = context.jobsByDate.reduce(
+    function(p,c){return p + c.summary.reduce(function(p,c){return p + c.jobs.length},0)},0);
+    context.summary.push({"title" : "jobs", "value" : jobs})
+    // daily allowance
+   context.summary.push({'title': 'daily allowance', "value" : context.allowance.toLocaleString()});
+  }
+
+  function lookupNames(array){
+    var result = [];
+    for (i in array){
+        if (result.indexOf(array[i].user) < 0){
+            result.push(array[i].user)
+        }
+    }
+    return result;
+  }
+function updateUser(context){
+    console.log("Updating users");
+
+    function mapUsers(el){
+        var result={}; 
+        result.id=el; 
+        result.text=el; 
+        return result 
+    };
+
+    var select2Data = context.names.map(mapUsers);
+    var initData = users.map(mapUsers);
+
+    d3.select(".userContainer").html("");
+    var userSelect = d3.select(".userContainer")
+        .append("input")
+        .attr("class","user-select")
+    $(".user-select").select2({
+    placeholder : "Find users",
+    multiple : true,
+    data : select2Data,
+    initSelection : function (element, callback) {
+    var data = [];
+    $(element.val().split(",")).each(function () {
+        if (this != ""){
+          data.push({id: this, text: this});
+        }
+         });
+        callback(data);
+        }
+     }).select2('val', users);
+     
+     $(".user-select").on("change", function(e) {
+              console.log("charoffange "+JSON.stringify({val:e.val, added:e.added, removed:e.removed}));
+              users=e.val;
+              updateGraph(context, dates);
+              })
+
+  }
+function updateSummary(context){
+
+   function generateHtmlSummary(summary){
+     var html = '<div class="title">'+ summary.title +'</div>'
+       html += '<div class="num">' + summary.value  + '</div>';
+     return html;
+   }
+    var summary = d3.select(".summaryContainer").selectAll(".summary")
+      .data(context.summary);
+
+    summary.html(function(d){return generateHtmlSummary(d)});
+
+    summary.enter()
+      .append("div")
+      .attr("class", "summary col-md-3")
+      .html(function(d){return generateHtmlSummary(d)})
+    
+  }
+
+  var updateAxis;
+  var oldDates;
+  function updateGraph(context, dates){
+    console.log("updating graph");
+    updateAxis = (dates != oldDates);
+    oldDates = dates;
+
+    // xscale
+    var scaleX = d3.time.scale();
+    scaleX.domain(dates);
+    scaleX.range([0, xWidth]);
+
+    // x axis
+    var xAxis = d3.svg.axis()
+      .scale(scaleX)
+      .orient("bottom")
+      .tickSize(1);
+
+    //.y scaley
+    var scaleY = d3.scale.log();
+    scaleY.domain([1, 50000000]);
+    scaleY.range([yHeight, 0]);
+
+    // utilization scale
+    var scaleY2 = d3.scale.linear();
+    scaleY2.domain([0, utilizationHeight]);
+    scaleY2.range([100, 0]);
+
+    // y axis
+    var yAxis = d3.svg.axis()
+      .scale(scaleY)
+      .orient("left")
+      .tickSize(1);
+
+    // utilization axis
+    var yAxis2 = d3.svg.axis()
+      .scale(scaleY2)
+      .orient("right")
+      .tickSize(1)
+      .ticks(5);
+
+    // color scale
+    var color = d3.scale.ordinal()
+      .domain(context.names)
+      .range(d3.range(context.names.length).map(d3.scale.linear()
+            .domain([0, context.names.length - 1])
+            .range(["hsl(0, 70%, 50%)", "hsl(100, 70%, 50%)"])
+            .interpolate(d3.interpolateHsl)
+            ));
+
+ 
+    var circles = svgContainer.selectAll("circle")
+      .data(context.data, function(d){return d.day + d.user})
+
+      circles.transition().duration(1000)
+      .attr("cx", function(d){return scaleX(new Date(d.day))})
+      .attr("cy", function(d){
+            var total = d.summary.restricted_cputime;
+            result = (total != 0) ? scaleY(total) : 0;
+            return result;
+            })
+    .attr("r", function(d){return Math.sqrt(d.summary.jobs.length)})
+    .style("fill", function(d){return color(d.user)});
+    
+    circles.enter()
+      .append("circle")
+      .attr("r", 0)
+      .style("fill", function(d){return color(d.user)})
+      .transition()
+      .duration(1000)
+      .attr("cx", function(d){return scaleX(new Date(d.day))})
+      .attr("cy", function(d){
+            var total = d.summary.restricted_cputime;
+            result = (total != 0) ? scaleY(total) : 0;
+            return result;
+            })
+    .attr("r", function(d){return Math.sqrt(d.summary.jobs.length)})
+    .attr("class", function(d){ return "circle-"+d.user; });
+
+    circles.exit()
+      .transition()
+      .duration(1000)
+      .attr("r",0)
+      .remove();
+
+
+    // Allowance
+    var allowance = svgContainer.selectAll(".allowance")
+        .data([context.allowance], function(d){return "allowance"});
+
+    allowance.transition()
+      .duration(1000)
+      .attr("d", "M0," + scaleY(context.allowance) + "L" + width + "," + scaleY(context.allowance))
+      .attr("class", "allowance")
+      .attr("fill", "none")
+      .attr("stroke", "black")
+      .attr("stroke-width", 1);
+
+    allowance.enter()
+      .append("path")
+      .attr("d", "M0," + scaleY(context.allowance) + "L" + width + "," + scaleY(context.allowance))
+      .attr("class", "allowance")
+      .attr("fill", "none")
+      .attr("stroke", "black")
+      .attr("stroke-width", 1);
+
+    allowance.exit().remove();
+
+    //utilizationheight
+    var bars = svgContainer.selectAll("rect")
+    .data(context.jobsByDate, function(d){return d.day})
+
+    // utilization
+    bars.transition()
+    .duration(1000)
+    .attr("height", function(d){
+        var total = d.summary.reduce(function(p,c){ return p + c.restricted_cputime},0);
+            return  scaleY2(100 - total/(context.cores*3600*10)*100);
+    })
+    .attr("transform", function(d){
+        var x = scaleX(new Date(d.day));
+        return "translate(" + x + ", " + (baseUtilization) + ")rotate(180)";})
+
+    bars.enter()
+    .append("rect")
+    .attr("transform", function(d){
+        var x = scaleX(new Date(d.day));
+        return "translate(" + x + ", " + (baseUtilization) + ")rotate(180)";})
+    .attr("fill", d3.hsl(200, 0.5, 0.5))
+    .attr("height", 0)
+    .transition()
+    .duration(1000)
+    .attr("class", function(d){return "bar-" + d.day})
+    .attr("width", (xWidth/context.jobsByDate.length) + "px")
+    .attr("height", function(d){
+        var total = d.summary.reduce( 
+          function(p,c){ return p + c.restricted_cputime},0);
+            return  scaleY2(100 - total/(context.cores*3600*10)*100)
+            })
+
+    bars.exit().transition().duration(1000)
+      .attr("height", 0)
+      .remove();
+
+    //lines
+    
+    var lines = context.datesByUser;
+    var d3lines = d3.svg.line()
+        .x(function(d){return scaleX(new Date(d.day))})
+        .y(function(d){
+            var total = d.summary.restricted_cputime;
+            result = (total != 0) ? scaleY(total) : 0;
+            return result;
+            });
+
+    var groupLines = svgContainer.selectAll('.line')
+        .data(lines, function(d){return d.user});
+
+    groupLines.transition().duration(1000).attr("d", function(d){return d3lines(d.days)});
+
+    groupLines.enter()
+        .append('path')
+        .attr("d", function(d){return d3lines(d.days)})
+        .attr("fill", "none")
+        .attr("stroke", function(d){return color(d.user)})
+        .attr("stroke-width", 0)
+        .attr("class", function(d){return "line " + d.user})
+
+    groupLines.exit().remove();
+    
+        // draw specific users usage
+        function updateLines(){
+          if (users.length>0){
+            d3.selectAll(".line").style("stroke-width", "0")
+            for (i in users){
+                var user = users[i];
+              d3.select(".line"+"."+user)
+               .style("stroke-width", 1)
+               .style("stroke-dasharray", "5,5");
+              d3.selectAll(".circle-"+user).style("opacity", "1") 
+            }
+            d3.selectAll("circle").style("opacity", "0.2")
+          }
+          else{
+              d3.selectAll("circle").style("opacity", "1")
+              d3.selectAll(".line").style("stroke-width", "0")
+          }
+      }
+
+    updateLines();
+
+    if (updateAxis){
+     console.log("updating axis");
+      d3.select(".xAxis").remove();
+      xAxisGroup = svgContainer.append("g")
+      .attr("class", "xAxis")
+      .attr("transform", "translate(0 , " + (height-marginBottom) + ")")
+      .call(xAxis)
+      .selectAll("text")
+      .style("text-anchor", "end")
+      .attr("transform", "rotate(-60)")
+      .on("click", function(d,i){
+          var dates = d3.select(".xAxis").selectAll("text")[0];
+          updateGraph(context, [dates[i-1].__data__, dates[i+1].__data__]);
+          })
+      }
+
+    if (typeof(yAxisGroup) == "undefined"){
+      yAxisGroup = svgContainer.append("g")
+       .call(yAxis);
+    }
+
+    if (typeof(yAxis2Group) == "undefined"){
+      yAxis2Group = svgContainer.append("g")
+        .attr("transform", "translate(" + xWidth + ", " + (baseUtilization - utilizationHeight) + ")")
+        .call(yAxis2);
+    }
+
+    if (typeof(xCaption) == "undefined"){
+      xCaption = svgContainer.append("text")
+        .attr("x", xWidth/2)
+        .attr("y", height - marginBottom/2)
+        .text("Days")
+    }
+
+    if (typeof(yCaption) == "undefined"){
+      yCaption = svgContainer.append("text")
+        .style("text-anchor", "middle")
+        .attr("transform", "translate("+ (-marginLeft + 10) + ", " + (yHeight/2) + ")rotate(-90)")
+        .text("Resources utilization (core.s)")
+    }
+
+    if (typeof(y2Caption) == "undefined"){
+      y2Caption = svgContainer.append("text")
+        .style("text-anchor", "middle")
+        .attr("transform", "translate("+ (xWidth + 2*marginLeft/3) + ", " + (baseUtilization - utilizationHeight/2) + ")rotate(-90)")
+        .text("Utilization (%)")
+    }
+
+  }
+
+  </script>
+</html>
