@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html;charset=utf-8">
+    <script type="text/javascript" src="js/d3.js"></script>
+    <script type="text/javascript" src="js/crossfilter.js"></script>
+    <script type="text/javascript" src="js/dc-2.0.0-dev.js"></script>
+    <link href="css/bootstrap.css" rel="stylesheet" type="text/css">
+    <link href="css/dc.css" rel="stylesheet" type="text/css">
+   <style>  
+      .axis line,
+      .axis path {
+         fill: none;
+         stroke: #000;
+         shape-rendering: crispEdges;
+       }
+   </style>
+
+  </head>
+  <body>
+    <div class="container">
+      <h1>BonFire API submission time.</h1>
+      <p>      
+      BonFIRE currently comprises 7 geographically distributed testbeds across Europe, which offer heterogeneous Cloud resources, including compute, storage and networking. Each testbed can be accessed seamlessly with a single experiment descriptor, using the BonFIRE API which is based on OCCI. See the image below for details about resource offering on the different testbeds, which include on-demand resources.
+      </p>
+      <p>
+      The visualization depicts the submission time of about 8 000 virtual machines submitted through the API of Bonfire.
+      </p>
+
+      <div class="row">
+        <div class="data-count">
+            <span class="filter-count"></span> selected out of <span class="total-count"></span> records
+          </div>
+        </div>
+
+
+
+      <div class="row"> 
+        <div id="fluctuation-chart"><h5>Submission time</h5></div>
+        <div id="images-chart">
+        <div><h5>Images Type</h5>
+            <a class="reset" href="javascript:imagesChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
+          </div>
+        </div>
+
+        <div id="sites-chart">
+          <div>Sites 
+            <a class="reset" href="javascript:imagesChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="row"> 
+            <table class="dc-data-table table table-hover" style="width:75%">
+        <thead>
+        <tr class="header">
+          <th>Diff (s)</th>
+          <th>Created</th>
+          <th>Image</th>
+          <th>Site</th>
+        </tr>
+        </thead>
+        </table>
+      </div>
+    </div>
+  </div>
+        <script>
+
+
+      var fluctuationChart = dc.barChart("#fluctuation-chart");
+      var imagesChart = dc.rowChart("#images-chart");
+      var sitesChart = dc.pieChart("#sites-chart");
+      var tableChart = dc.dataTable('.dc-data-table');
+      var dataCount =  dc.dataCount(".data-count")
+      
+      d3.json("./globals.json", function (data) {
+            /* since its a csv file we need to format the data a bit */
+            datax = crossfilter(data);
+            all = datax.groupAll();
+
+            /* Diff time chart. */
+            dataByDiff = datax.dimension(function(d){return Math.floor(d.diff)})
+            inriaDiffGroup = dataByDiff.group().reduceSum(function(d){return d.site=="fr-inria"?1:0});
+            hpDiffGroup = dataByDiff.group().reduceSum(function(d){return d.site=="uk-hplabs"?1:0});
+            epDiffGroup = dataByDiff.group().reduceSum(function(d){return d.site=="uk-epcc"?1:0});
+
+             fluctuationChart.width(600)
+               .height(300)
+               .dimension(dataByDiff)
+               .group(inriaDiffGroup)
+               .stack(hpDiffGroup)
+               .stack(epDiffGroup)
+               .ordinalColors(["orange", "green", "blue"]) 
+               .centerBar(true)
+               .gap(1)
+               .elasticY(true)
+               .round(dc.round.floor)
+               .x(d3.scale.linear().domain([0, 100]))
+               .renderHorizontalGridLines(true)
+
+            fluctuationChart.xAxis()
+            fluctuationChart.yAxis().ticks(5);
+            
+            /* Images name Chart. */
+            var images = datax.dimension(function (d) {
+              return d.image_name;
+            });
+            var imagesGroup = images.group();
+
+            imagesChart.width(500)
+              .height(100)
+              .margins({top: 20, left: 10, right: 10, bottom: 20})
+              .dimension(images)
+              .group(imagesGroup)
+              .ordinalColors(['red', 'pink'])
+              .label(function(d){
+                  return d.key
+              })
+              .title(function(d){
+                d.value
+              })
+              .xAxis().ticks(4);
+
+            /* Sites chart*/
+            var sites = datax.dimension(function (d) {
+              return d.site;
+            });
+            var sitesGroup = sites.group();
+
+            sitesChart.width(180) 
+              .height(180) 
+              .radius(80) 
+              .dimension(sites)
+              .ordinalColors(["orange", "blue", "green"]) 
+              .group(sitesGroup) 
+              .innerRadius(40)
+              .transitionDuration(200);
+
+            /* Data table order by diff*/
+
+            tableChart.dimension(dataByDiff)
+            .group(function(d){return Math.floor(d.diff)})
+            .columns([
+              function(d){
+                return d.diff;  
+              },
+              function(d){
+                return (new Date(d.created_at)).toLocaleString();
+              },
+              function(d){
+                return d.image_name;
+              },
+              function(d){
+                return d.site
+              }
+              ])
+              .size(20)
+              .sortBy(function(d) {return d.diff})
+              .order(d3.ascending)
+              .renderlet(function(table){
+                table.selectAll(".dc-table-group").classed("info", true);
+              });
+            
+              //data count
+          dataCount.dimension(datax).group(all);
+
+            dc.renderAll();
+
+
+
+      });
+    </script>
+
+  </body> 
+</html>
