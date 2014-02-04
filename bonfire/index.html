@@ -36,15 +36,15 @@
 
 
       <div class="row"> 
-        <div id="fluctuation-chart"><h5>Submission time</h5></div>
+        <div id="fluctuation-chart"><h3>Submission time</h3></div>
         <div id="images-chart">
-        <div><h5>Images Type</h5>
+        <div><h3>Images Type</h3>
             <a class="reset" href="javascript:imagesChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
           </div>
         </div>
 
         <div id="sites-chart">
-          <div>Sites 
+          <div><h3>Sites</h3> 
             <a class="reset" href="javascript:imagesChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
           </div>
         </div>
@@ -97,6 +97,8 @@
                .round(dc.round.floor)
                .x(d3.scale.linear().domain([0, 100]))
                .renderHorizontalGridLines(true)
+               .xAxisLabel("Time (s)")
+               .yAxisLabel("# VMs")
 
             fluctuationChart.xAxis()
             fluctuationChart.yAxis().ticks(5);
