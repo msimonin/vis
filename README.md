@@ -1,4 +1,1 @@
-vis
-===
-
-visualization repository
+Visit http://msimonin.github.com/vis
