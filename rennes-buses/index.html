@@ -1,0 +1,316 @@
+<html>
+  
+  <head>
+    <title>Bus stops in Rennes</title>
+    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=true"></script>
+      <script src="js/crossfilter.js"></script>
+      <script src="js/jquery-2.0.3.js"></script>
+      <script src="js/jquery.csv-0.71.js"></script>
+      <link rel="stylesheet" href="css/bootstrap.min.css">
+      <style>
+        #title{
+          position: relative;
+          top : 10px;
+          left: 50%;
+        } 
+        #load{
+          position: relative;
+          top : 10px;
+          left: 50%;
+        } 
+      </style>
+  </head>
+
+ 
+  <body>
+
+    <div class="container">
+      <div class="explanation">
+        <h1>Bus stops in Rennes</h1>
+      </div>
+      <div id="viz">
+        <div id="title">Processing datas (this can be long) ...</div>
+        <div id="load"></div>
+        <div id="map" style="width: 100%; height: 100%; margin-top:30px"></div>
+      </div>
+    </div>
+
+    <script>
+      var markers = {};
+      var map;
+      var calendar;
+      var n=0;
+      var defaultIcon = {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale:2,
+        strokeWeight: 0,
+        fillOpacity: 0.6,
+        fillColor: 'blue'
+      }
+      
+      map = new google.maps.Map(document.getElementById("map"),{
+          zoom: 13,
+          center: new google.maps.LatLng(48.1103498, -1.6582),
+          mapTypeId: google.maps.MapTypeId.TERRAIN
+      });
+
+
+      google.maps.event.addListener(map, 'tilesloaded', function(evt) {
+          load_markers();
+          google.maps.event.clearListeners(map, 'tilesloaded');
+      });
+      
+      // add an appropriate event listener
+      document.addEventListener("markers_loaded", function(e) {console.log(e); update('#load','loading trips ...'); load_calendar() });
+      document.addEventListener("trips_loaded", function(e) {console.log(e);update('#load',e.detail.total  + ' trips loaded ...filtering');});
+      document.addEventListener("trips_filtered", function(e) {console.log(e);update('#load',e.detail.total  + ' trips filtered ... loading stop times') });
+      document.addEventListener("stop_times_loaded", function(e) {console.log(e);update('#load',e.detail.total  + ' stop times loaded ...')})
+
+      function update(name, s){
+        $(name).text(s);
+      }
+
+      function load_calendar(){
+        $.get("resources/rennes/calendar.txt",function(data) {
+          var csv = $.csv.toObjects(data);
+          var calendar = crossfilter(csv);
+          var calendar_by_day = calendar.dimension(function(d){return d.monday==1});
+          calendar_filtered = calendar_by_day.filter(1).top(Infinity);
+          load_trips(calendar_filtered);
+        });
+      }
+
+      function load_markers(){
+        $.get("resources/rennes/stops.txt", function(data){
+          var stops = $.csv.toObjects(data);
+          for (var i in stops){
+            var stop = stops[i];
+            markers[stop.stop_id] = new google.maps.Marker({
+                position : new google.maps.LatLng(stop.stop_lat, stop.stop_lon),
+                map: map,
+                stop: stop.stop_id, 
+                visible: true,
+                title: stop.stop_name,
+                icon: defaultIcon,
+                zIndex: 1
+              });
+          } 
+          fire("markers_loaded", {});
+        });
+      
+      }
+
+      // create and dispatch the event
+      function fire(s,d){
+        var event = new CustomEvent(s, d);
+        document.dispatchEvent(event);
+      } 
+
+      function load_trips(calendar_filtered){
+        $.get( "resources/rennes/trips.txt", function( data ) {
+          var csv = $.csv.toObjects(data);
+          fire("trips_loaded", {"detail": { "total": csv.length}});
+          var trips  = crossfilter(csv);
+          var trips_by_service = trips.dimension(
+            function(d){return d.service_id}
+          );
+          var trips_on_the_day = trips_by_service.filterFunction(
+            function(d){
+            var services_id = calendar_filtered.map(function(c){return c.service_id})
+            return services_id.indexOf(d) >= 0;
+            }
+          );
+          var trips_filtered = trips_on_the_day.top(Infinity);
+          fire("trips_filtered", {"detail": { "total": trips_filtered.length}});
+          load_stop_times(trips_filtered);
+        });
+      };
+
+
+      function load_stop_times(trips_filtered){
+        $.get("resources/rennes/stop_times_clean.txt", function(data){
+          var csv = $.csv.toObjects(data);
+          fire("stop_times_loaded", {"detail": { "total": csv.length}});
+          var stop_times = crossfilter(csv);
+          var stop_times_by_trip = stop_times.dimension(
+            function(d){ return d.trip_id}
+          );
+          var trips = trips_filtered.map(function(c){return c.trip_id});
+          var stop_times_on_the_day = stop_times_by_trip.filterFunction(
+            function(d){
+              return trips.indexOf(d) >= 0;
+            }
+          );
+          var stop_count_by_trip_a = stop_times_by_trip.group().reduceCount().all();
+          var stop_count_by_trip = toHash(stop_count_by_trip_a);
+
+          var stop_times_filtered = stop_times_on_the_day.top(Infinity);
+          var sortByDate = crossfilter.quicksort.by(function(d){return d.departure_time});
+          var stop_times_date_asc = sortByDate(stop_times_filtered, 0, stop_times_filtered.length);
+          scroll(stop_times_date_asc, stop_count_by_trip);
+
+          function toHash(a){
+            var result = {};
+            var s = 0;
+            for (var i in a){
+              s = a[i];
+              result[s.key] = {"stop_total" : s.value};
+            }
+            return result;
+          }
+
+
+        })
+      }
+
+    function scroll(a, lines_by_trip){
+      var prefix = "01-01-70 ";
+      var start_hour = a[0].departure_time;
+      var start = (new Date(prefix + start_hour)).getTime();
+      var start_index = 0;
+      var to_reinit = [];
+      // 1 sec => 1 min
+      setInterval(display_buses, 1000);
+
+      function display_buses(){
+        console.log(start);
+        update_time(start);
+        var d = new Date(start);
+        var s = printTimeForBus(d);
+        var i = start_index;
+       for (var j in to_reinit){
+         var m = to_reinit[j];
+         m.setMap(null);
+       }
+
+       to_reinit=[];
+
+        // draw only buses wich stop time = current time
+        while(a[i].departure_time === s){
+
+          // add point to trip polyline
+          var trip_line = lines_by_trip[a[i].trip_id]
+          if (typeof trip_line.polyline == "undefined"){
+           trip_line.polyline =  new google.maps.Polyline({
+             strokeOpacity: 1,
+             strokeColor: '#'+(Math.random()*0xFFFFFF<<0).toString(16),
+             strokeWeight: 2,
+             zIndex: 2 
+           })
+           trip_line.polyline.setMap(map);
+          }
+
+          var path = trip_line.polyline.getPath();
+
+          path.push(markers[a[i].stop_id].getPosition());
+          
+          if (path.length >= trip_line.stop_total){
+            trip_line.polyline.setMap(null);
+          }
+
+          //add marker
+      	  to_reinit.push(addBusAtStop(markers[a[i].stop_id].getPosition(), trip_line.polyline.strokeColor));
+/*          var m= new google.maps.Marker({
+            position : markers[a[i].stop_id].getPosition(),
+            map: map,
+            stop: stop.stop_id, 
+            visible: true,
+            title: stop.stop_name,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale:3,
+              strokeWeight: 0,
+              fillColor: trip_line.polyline.strokeColor,
+              fillOpacity:1
+            },
+            zIndex: 2
+          });
+          to_reinit.push(m);
+*/
+
+          i++;
+        }
+        start_index=i;
+        start = start + 1000*60;
+      }
+    }
+
+function addBusAtStop(position, color) {
+    console.log("add marker " + position + "-" +color);
+
+    var outer = new google.maps.Marker({
+      position: position,
+      clickable: false,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillOpacity: 0.5,
+        fillColor: color,
+        strokeOpacity: 1,
+        strokeColor: color,
+        strokeWeight: 1,
+        scale: 0,
+        visible: true,
+      },
+    });
+    outer.setMap(map);
+
+    var inner = new google.maps.Marker({
+      position: position,
+      clickable: false,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillOpacity: 1.0,
+        fillColor: color,
+        strokeWeight: 0,
+        scale: 0,
+        visible: true,
+      },
+    });
+
+
+    for (var i = 0; i <= 5; i++) {
+      setTimeout(setScale(inner, outer, 2*i / 10), 2*i * 60);
+    }
+
+    return inner;
+  }
+
+  function setScale(inner, outer, scale) {
+    console.log("setScale " +  scale);
+    return function() {
+      if (scale == 1) {
+        outer.setMap(null);
+      } else {
+        var icono = outer.get('icon');
+        icono.strokeOpacity = Math.cos((Math.PI/2) * scale);
+        icono.fillOpacity = icono.strokeOpacity * 0.5;
+        icono.scale = Math.sin((Math.PI/2) * scale) * 15;
+        outer.set('icon', icono);
+
+        var iconi = inner.get('icon');
+        var newScale = (icono.scale < 2.0 ? 0.0 : 2.0);
+        if (iconi.scale != newScale) {
+          iconi.scale = newScale;
+          inner.set('icon', iconi);
+          if (!inner.getMap()) inner.setMap(map);
+        }
+      }
+    }
+  }
+
+
+    function printTimeForBus(d){
+      var h = (d.getHours()<10)?"0"+d.getHours():d.getHours();
+      var m = (d.getMinutes()<10)?"0"+d.getMinutes():d.getMinutes();
+      return h+':'+m+':00';
+    }
+
+    function update_time(time){
+      var date = new Date(time);
+      update('#title', 'Time : ' + printTimeForBus(date));
+    }
+
+        </script>
+  </body>
+</html>
+
