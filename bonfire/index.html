@@ -15,6 +15,21 @@
          stroke: #000;
          shape-rendering: crispEdges;
        }
+
+       .summary{
+         border: 1px solid rgb(241,241,241);
+         text-align: center;
+         font-size:120%;
+       }
+
+       .title{
+         display : block;
+       }
+
+       .num{
+         font-weight: bold;
+       }
+
    </style>
 
   </head>
@@ -33,10 +48,10 @@
       </p>
 
       <div class="row">
-        <div class="data-count">
-            <span class="filter-count"></span> selected out of <span class="total-count"></span> records
-          </div>
-        </div>
+        <div class="col-md-4 summary"><span class="title">Average time spent</span> <span class="num data-avg"></span> </div>
+        <div class="col-md-4 summary"><span class="title">Number of entries</span> <span class="num data-total"></span> </div>
+        <div class="col-md-4 summary"><span class="title">Total time spent</span><span class="num data-sum"></span> </div>
+      </div>
 
       <div class="row"> 
         <div id="fluctuation-chart"><h3>Submission time</h3></div>
@@ -69,12 +84,16 @@
   </div>
         <script>
 
-
+    
+      console.log("toto");
       var fluctuationChart = dc.barChart("#fluctuation-chart");
       var imagesChart = dc.rowChart("#images-chart");
       var sitesChart = dc.pieChart("#sites-chart");
       var tableChart = dc.dataTable('.dc-data-table');
-      var dataCount =  dc.dataCount(".data-count")
+//      var dataCount =  dc.dataCount(".data-count")
+      var dataDisplayAvg =  dc.numberDisplay(".data-avg")
+      var dataDisplayTotal =  dc.numberDisplay(".data-total")
+      var dataDisplaySum =  dc.numberDisplay(".data-sum")
       
       d3.json("./globals.json", function (data) {
             /* since its a csv file we need to format the data a bit */
@@ -167,7 +186,18 @@
               });
             
               //data count
-          dataCount.dimension(datax).group(all);
+             
+              function add(p,c){p.count ++; p.sum += c.diff; p.avg = p.sum/p.count; return p}
+              
+              function remove(p,c){p.count --; p.sum -= c.diff; p.avg = p.sum/p.count; return p}
+              
+              function init(){return {count:0, avg: 0, sum:0}}
+
+              g = datax.groupAll().reduce(add, remove, init)
+
+              dataDisplayAvg.dimension(datax).group(g).valueAccessor(function(d){return d.avg});
+              dataDisplayTotal.dimension(datax).group(g).valueAccessor(function(d){return d.count});
+              dataDisplaySum.dimension(datax).group(g).valueAccessor(function(d){return d.sum});
 
             dc.renderAll();
 
