@@ -6,6 +6,7 @@
       <script src="js/crossfilter.js"></script>
       <script src="js/jquery-2.0.3.js"></script>
       <script src="js/jquery.csv-0.71.js"></script>
+      <script src="js/parallel.js"></script>
       <link rel="stylesheet" href="css/bootstrap.min.css">
       <style>
         #title{
@@ -86,7 +87,9 @@
           var calendar = crossfilter(csv);
           var calendar_by_day = calendar.dimension(function(d){return d.monday==1});
           calendar_filtered = calendar_by_day.filter(1).top(Infinity);
-          load_trips(calendar_filtered);
+          var p = new Parallel(calendar_filtered);
+
+          p.spawn(load_trips(calendar_filtered);
         });
       }
 
