@@ -30,7 +30,6 @@
             margin-bottom: 50px;
           }
           rect {
-            fill: none;
             pointer-events: all;
           }
 
@@ -96,8 +95,8 @@
       <section>
         <div id="intro"><h1>Dynamic charts</h1></title></div>
         <div id="raw"><h5>raw (last)</h5><div id="rawtext"></div></div>
-        <div id="bar"><h5>radius</h5><svg></svg></div>
-        <div id="pie"><h5>color</h5><svg></svg></div>
+        <div id="bar"><h5>radius</h5><svg height=500px></svg></div>
+        <div id="pie"><h5>color</h5><svg height=500px></svg></div>
         <div id="graph"><h5>circle</h5></div>
        </section>
 
@@ -213,7 +212,7 @@
             _node.attr("cx", function(d) { return d.x; })
             .attr("cy", function(d) { return d.y; });
             var raw = n[n.length - 1];
-            document.getElementById("rawtext").innerHTML = JSON.stringify({x:Math.floor(raw.x),y:Math.floor(raw.y),radius:raw.radius,color:raw.color}) ;
+            document.getElementById("rawtext").innerHTML = "[..." + JSON.stringify({x:Math.floor(raw.x),y:Math.floor(raw.y),radius:raw.radius,color:raw.color}) + "]";
           }
 
         } //restart
@@ -264,6 +263,7 @@
       var barChart = nv.models.discreteBarChart()
         .x(function(d) { return d.key })    //Specify the data accessors.
         .y(function(d) { return d.value })
+        .color(["black"])
         .width(300)
         .height(300)
         .tooltips(false)       
